@@ -435,6 +435,21 @@ async function runQuery(
     log(`Additional directories: ${extraDirs.join(', ')}`);
   }
 
+  // Load group-level MCP servers from ~/.claude/.mcp.json (mounted from data/sessions/<group>/.claude/)
+  // The SDK does not read .mcp.json automatically — we must merge them in explicitly.
+  type McpServerConfig = { command: string; args?: string[]; env?: Record<string, string> };
+  const extraMcpServers: Record<string, McpServerConfig> = {};
+  try {
+    const mcpJsonPath = path.join(process.env.HOME || '/home/node', '.claude', '.mcp.json');
+    const mcpJson = JSON.parse(fs.readFileSync(mcpJsonPath, 'utf-8'));
+    for (const [name, cfg] of Object.entries(mcpJson.mcpServers || {})) {
+      extraMcpServers[name] = cfg as McpServerConfig;
+    }
+    if (Object.keys(extraMcpServers).length > 0) {
+      log(`Loaded ${Object.keys(extraMcpServers).length} extra MCP server(s) from .mcp.json: ${Object.keys(extraMcpServers).join(', ')}`);
+    }
+  } catch { /* no .mcp.json — fine */ }
+
   for await (const message of query({
     prompt: stream,
     options: {
@@ -469,7 +484,7 @@ async function runQuery(
         'Skill',
         'NotebookEdit',
         'mcp__nanoclaw__*',
-        'mcp__gmail__*',
+        'mcp__*',
       ],
       env: sdkEnv,
       permissionMode: 'bypassPermissions',
@@ -489,6 +504,7 @@ async function runQuery(
           command: 'npx',
           args: ['-y', '@gongrzhe/server-gmail-autoauth-mcp'],
         },
+        ...extraMcpServers,
       },
       hooks: {
         PreCompact: [

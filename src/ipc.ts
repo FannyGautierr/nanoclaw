@@ -8,10 +8,11 @@ import { AvailableGroup } from './container-runner.js';
 import { createTask, deleteTask, getTaskById, updateTask } from './db.js';
 import { isValidGroupFolder } from './group-folder.js';
 import { logger } from './logger.js';
+import { resolveGroupFolderPath } from './group-folder.js';
 import { RegisteredGroup } from './types.js';
 
 export interface IpcDeps {
-  sendMessage: (jid: string, text: string) => Promise<void>;
+  sendMessage: (jid: string, text: string, imagePath?: string) => Promise<void>;
   registeredGroups: () => Record<string, RegisteredGroup>;
   registerGroup: (jid: string, group: RegisteredGroup) => void;
   syncGroups: (force: boolean) => Promise<void>;
@@ -81,7 +82,17 @@ export function startIpcWatcher(deps: IpcDeps): void {
                   isMain ||
                   (targetGroup && targetGroup.folder === sourceGroup)
                 ) {
-                  await deps.sendMessage(data.chatJid, data.text);
+                  // Translate container image path to host path if present.
+                  // Container: /workspace/group/<rel> → host: groupFolderPath/<rel>
+                  let hostImagePath: string | undefined;
+                  if (data.imagePath) {
+                    const containerPrefix = '/workspace/group/';
+                    const rel = data.imagePath.startsWith(containerPrefix)
+                      ? data.imagePath.slice(containerPrefix.length)
+                      : data.imagePath.replace(/^\/+/, '');
+                    hostImagePath = `${resolveGroupFolderPath(sourceGroup)}/${rel}`;
+                  }
+                  await deps.sendMessage(data.chatJid, data.text, hostImagePath);
                   logger.info(
                     { chatJid: data.chatJid, sourceGroup },
                     'IPC message sent',

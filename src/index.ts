@@ -61,6 +61,7 @@ import {
   loadSenderAllowlist,
   shouldDropMessage,
 } from './sender-allowlist.js';
+import { markEnded, markStarted } from './running-state.js';
 import { startSchedulerLoop } from './task-scheduler.js';
 import { Channel, NewMessage, RegisteredGroup } from './types.js';
 import { logger } from './logger.js';
@@ -254,6 +255,16 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
     }, IDLE_TIMEOUT);
   };
 
+  const runId = `msg-${chatJid}`;
+  markStarted({
+    id: runId,
+    type: 'message',
+    prompt: missedMessages[missedMessages.length - 1]?.content ?? '',
+    groupFolder: group.folder,
+    chatJid,
+    startedAt: new Date().toISOString(),
+  });
+
   await channel.setTyping?.(chatJid, true);
   let hadError = false;
   let outputSentToUser = false;
@@ -287,6 +298,7 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
 
   await channel.setTyping?.(chatJid, false);
   if (idleTimer) clearTimeout(idleTimer);
+  markEnded(runId);
 
   if (output === 'error' || hadError) {
     // If we already sent output to the user, don't roll back the cursor —
@@ -688,10 +700,14 @@ async function main(): Promise<void> {
     },
   });
   startIpcWatcher({
-    sendMessage: (jid, text) => {
+    sendMessage: async (jid, text, imagePath) => {
       const channel = findChannel(channels, jid);
       if (!channel) throw new Error(`No channel for JID: ${jid}`);
-      return channel.sendMessage(jid, text);
+      if (imagePath && channel.sendFile) {
+        await channel.sendFile(jid, imagePath, text);
+      } else {
+        await channel.sendMessage(jid, text);
+      }
     },
     registeredGroups: () => registeredGroups,
     registerGroup,

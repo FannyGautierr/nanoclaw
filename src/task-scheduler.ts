@@ -19,6 +19,7 @@ import {
 import { GroupQueue } from './group-queue.js';
 import { resolveGroupFolderPath } from './group-folder.js';
 import { logger } from './logger.js';
+import { markEnded, markStarted } from './running-state.js';
 import { RegisteredGroup, ScheduledTask } from './types.js';
 
 /**
@@ -107,6 +108,17 @@ async function runTask(
     { taskId: task.id, group: task.group_folder },
     'Running scheduled task',
   );
+
+  markStarted({
+    id: task.id,
+    type: 'task',
+    taskId: task.id,
+    prompt: task.prompt,
+    groupFolder: task.group_folder,
+    chatJid: task.chat_jid,
+    startedAt: new Date().toISOString(),
+    scheduleType: task.schedule_type,
+  });
 
   const groups = deps.registeredGroups();
   const group = Object.values(groups).find(
@@ -219,6 +231,8 @@ async function runTask(
     error = err instanceof Error ? err.message : String(err);
     logger.error({ taskId: task.id, error }, 'Task failed');
   }
+
+  markEnded(task.id);
 
   const durationMs = Date.now() - startTime;
 
