@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# perplexity-search — query Perplexity's online model and print the answer
+# Usage: perplexity-search "query string"
+# Requires: PERPLEXITY_API_KEY env var
+
+set -euo pipefail
+
+if [[ -z "${PERPLEXITY_API_KEY:-}" ]]; then
+  echo "Error: PERPLEXITY_API_KEY is not set" >&2
+  exit 1
+fi
+
+if [[ $# -eq 0 ]]; then
+  echo "Usage: perplexity-search \"your query\"" >&2
+  exit 1
+fi
+
+QUERY="$*"
+
+RESPONSE=$(curl -s https://api.perplexity.ai/chat/completions \
+  -H "Authorization: Bearer ${PERPLEXITY_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d "$(jq -n \
+    --arg query "$QUERY" \
+    '{
+      model: "sonar",
+      messages: [
+        {
+          role: "system",
+          content: "You are a research assistant. Return concise factual summaries with dates. Focus on recent news, company updates, key people, and relevant business context. Be specific and cite facts."
+        },
+        {
+          role: "user",
+          content: $query
+        }
+      ],
+      max_tokens: 512
+    }'
+  )")
+
+# Extract content from response
+echo "$RESPONSE" | jq -r '.choices[0].message.content // "No results returned."'

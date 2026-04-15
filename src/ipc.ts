@@ -92,7 +92,11 @@ export function startIpcWatcher(deps: IpcDeps): void {
                       : data.imagePath.replace(/^\/+/, '');
                     hostImagePath = `${resolveGroupFolderPath(sourceGroup)}/${rel}`;
                   }
-                  await deps.sendMessage(data.chatJid, data.text, hostImagePath);
+                  await deps.sendMessage(
+                    data.chatJid,
+                    data.text,
+                    hostImagePath,
+                  );
                   logger.info(
                     { chatJid: data.chatJid, sourceGroup },
                     'IPC message sent',
