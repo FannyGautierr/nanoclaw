@@ -10,5 +10,9 @@ import './gmail.js';
 import './slack.js';
 
 // telegram
+import './telegram.js';
+
+// unipile
+import './unipile.js';
 
 // whatsapp
